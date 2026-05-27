@@ -20,6 +20,11 @@ export interface CredentialMetadata {
     issuedAt: number;
 }
 
+interface ContractInvocationResult<T = unknown> {
+    transactionHash: string;
+    returnValue: T | null;
+}
+
 /**
  * Poll for transaction confirmation after sendTransaction()
  * Soroban transactions are async — sendTransaction() only queues them.
@@ -55,7 +60,7 @@ async function invokeContractMethod(
     method: string,
     args: any[],
     signerAddress: string
-): Promise<string> {
+): Promise<ContractInvocationResult> {
     const contract = new Contract(contractId);
     const sourceAccount = await sorobanServer.getAccount(signerAddress);
 
@@ -119,10 +124,47 @@ async function invokeContractMethod(
 
     // Wait for on-chain confirmation
     console.log(`⏳ Waiting for confirmation (hash: ${sendResponse.hash})...`);
-    await waitForConfirmation(sendResponse.hash);
+    const confirmation = await waitForConfirmation(sendResponse.hash);
     console.log(`✅ ${method} confirmed on-chain.`);
 
-    return sendResponse.hash;
+    return {
+        transactionHash: sendResponse.hash,
+        returnValue: decodeTransactionReturnValue(confirmation),
+    };
+}
+
+function decodeTransactionReturnValue(confirmation: any): unknown | null {
+    const returnValue = confirmation?.returnValue;
+    if (!returnValue) {
+        return null;
+    }
+
+    try {
+        if (typeof returnValue === "string") {
+            return scValToNative(xdr.ScVal.fromXDR(returnValue, "base64"));
+        }
+
+        return scValToNative(returnValue);
+    } catch (error) {
+        console.error("Failed to decode Soroban return value:", error);
+        return null;
+    }
+}
+
+export function normalizeTokenId(returnValue: unknown): string {
+    if (typeof returnValue === "bigint") {
+        return returnValue.toString();
+    }
+
+    if (typeof returnValue === "number" && Number.isSafeInteger(returnValue) && returnValue >= 0) {
+        return String(returnValue);
+    }
+
+    if (typeof returnValue === "string" && /^\d+$/.test(returnValue)) {
+        return returnValue;
+    }
+
+    throw new Error("Credential transaction confirmed but did not return a valid token ID");
 }
 
 /**
@@ -220,7 +262,8 @@ export async function isAuthorizedIssuer(issuerAddress: string, callerAddress: s
 export async function authorizeIssuer(adminAddress: string, issuerAddress: string): Promise<string> {
     const contractId = getContractAddress("CREDENTIAL_NFT");
     const args = [new Address(issuerAddress).toScVal()];
-    return invokeContractMethod(contractId, "authorize_issuer", args, adminAddress);
+    const result = await invokeContractMethod(contractId, "authorize_issuer", args, adminAddress);
+    return result.transactionHash;
 }
 
 /**
@@ -254,12 +297,14 @@ export async function issueCredentialOnStellar(
         nativeToScVal(ipfsUri, { type: "string" }),
     ];
 
-    const txHash = await invokeContractMethod(contractId, "issue_credential", args, issuerAddress);
+    const result = await invokeContractMethod(contractId, "issue_credential", args, issuerAddress);
+    const tokenId = normalizeTokenId(result.returnValue);
 
-    console.log("✅ Credential issued on Stellar Network. Tx:", txHash);
+    console.log("✅ Credential issued on Stellar Network. Token ID:", tokenId);
+    console.log("✅ Transaction:", result.transactionHash);
     return {
-        tokenId: "pending",
-        transactionHash: txHash,
+        tokenId,
+        transactionHash: result.transactionHash,
     };
 }
 
@@ -275,9 +320,9 @@ export async function revokeCredentialOnStellar(tokenId: string, issuerAddress: 
         new Address(issuerAddress).toScVal(),
     ];
 
-    const txHash = await invokeContractMethod(contractId, "revoke_credential", args, issuerAddress);
-    console.log("✅ Credential revoked on Stellar Network. Tx:", txHash);
-    return txHash;
+    const result = await invokeContractMethod(contractId, "revoke_credential", args, issuerAddress);
+    console.log("✅ Credential revoked on Stellar Network. Tx:", result.transactionHash);
+    return result.transactionHash;
 }
 
 /**
