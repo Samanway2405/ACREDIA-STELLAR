@@ -564,6 +564,12 @@ NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# Admin access control
+# Comma-separated list of emails that may access admin API routes.
+# Admin accounts must be provisioned by a trusted Supabase/service-role process.
+ADMIN_EMAIL_ALLOWLIST=admin@example.com
 
 # Pinata IPFS (get free JWT at https://pinata.cloud)
 NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt_token
@@ -596,6 +602,8 @@ Run the following SQL scripts in your Supabase SQL Editor:
 4. frontend/sql/enable_admin_stats.sql
 5. frontend/sql/add_profiles_table.sql (Triggers automated auth.users sync)
 ```
+
+Public signup metadata is intentionally not trusted for admin provisioning. To create an admin, create or confirm the user through Supabase, update that user's `profiles.role` to `admin` through a service-role/admin SQL process, and add the user's email to `ADMIN_EMAIL_ALLOWLIST`.
 
 ### Smart Contract Deployment
 
