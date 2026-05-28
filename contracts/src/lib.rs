@@ -225,40 +225,38 @@ mod tests {
     #[test]
     fn test_initialize() {
         let env = Env::default();
+        let contract_id = env.register_contract(None, AcrediaCredential);
+        let client = AcrediaCredentialClient::new(&env, &contract_id);
         let owner = Address::generate(&env);
 
-        AcrediaCredential::initialize(env.clone(), owner.clone());
+        client.initialize(&owner);
 
-        let stored_owner = AcrediaCredential::get_owner(env);
+        let stored_owner = client.get_owner();
         assert_eq!(stored_owner, owner);
     }
 
     #[test]
     fn test_issue_and_verify() {
         let env = Env::default();
+        let contract_id = env.register_contract(None, AcrediaCredential);
+        let client = AcrediaCredentialClient::new(&env, &contract_id);
         let owner = Address::generate(&env);
         let issuer = Address::generate(&env);
         let student = Address::generate(&env);
 
         env.mock_all_auths();
 
-        AcrediaCredential::initialize(env.clone(), owner.clone());
-        AcrediaCredential::authorize_issuer(env.clone(), issuer.clone());
+        client.initialize(&owner);
+        client.authorize_issuer(&issuer);
 
         let hash = String::from_str(&env, "test_hash");
         let ipfs = String::from_str(&env, "ipfs_hash");
 
-        let token_id = AcrediaCredential::issue_credential(
-            env.clone(),
-            student.clone(),
-            issuer,
-            hash.clone(),
-            ipfs,
-        );
+        let token_id = client.issue_credential(&student, &issuer, &hash, &ipfs);
 
         assert_eq!(token_id, 1);
 
-        if let Some(cred) = AcrediaCredential::verify_credential(env, hash) {
+        if let Some(cred) = client.verify_credential(&hash) {
             assert_eq!(cred.token_id, 1);
             assert_eq!(cred.student, student);
         } else {
