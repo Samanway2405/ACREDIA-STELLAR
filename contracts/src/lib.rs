@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_initialize() {
         let env = Env::default();
-        let owner = Address::random(&env);
+        let owner = Address::generate(&env);
 
         AcrediaCredential::initialize(env.clone(), owner.clone());
 
@@ -236,9 +236,9 @@ mod tests {
     #[test]
     fn test_issue_and_verify() {
         let env = Env::default();
-        let owner = Address::random(&env);
-        let issuer = Address::random(&env);
-        let student = Address::random(&env);
+        let owner = Address::generate(&env);
+        let issuer = Address::generate(&env);
+        let student = Address::generate(&env);
 
         env.mock_all_auths();
 
