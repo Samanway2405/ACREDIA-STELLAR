@@ -10,8 +10,8 @@ export default function AdminSetupPage() {
     return (
         <div className="min-h-screen bg-linear-to-br from-gray-50 via-red-50 to-orange-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute top-20 right-0 w-96 h-96 bg-red-200/20 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-200/20 rounded-full blur-3xl"></div>
+                <div className="absolute right-0 top-20 h-96 w-96 rounded-full bg-red-200/20 blur-3xl"></div>
+                <div className="absolute bottom-0 left-0 h-96 w-96 rounded-full bg-orange-200/20 blur-3xl"></div>
             </div>
 
             <Card className="w-full max-w-xl p-8 space-y-6 relative z-10 shadow-2xl border-2 border-red-100">
@@ -25,7 +25,7 @@ export default function AdminSetupPage() {
                                 height={80}
                                 className="rounded-lg"
                             />
-                            <Shield className="absolute -bottom-2 -right-2 h-8 w-8 text-red-600 bg-white rounded-full p-1 shadow-lg" />
+                            <Shield className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-white p-1 text-red-600 shadow-lg" />
                         </div>
                     </div>
                     <h1 className="text-3xl font-bold text-gray-900">
@@ -74,11 +74,8 @@ export default function AdminSetupPage() {
 
                 <div className="pt-4 border-t border-gray-200 space-y-2">
                     <Link href="/auth/admin-login">
-                        <Button
-                            variant="ghost"
-                            className="w-full text-gray-600 hover:text-gray-900"
-                        >
-                            <ArrowLeft className="h-4 w-4 mr-2" />
+                        <Button variant="ghost" className="w-full text-gray-600 hover:text-gray-900">
+                            <ArrowLeft className="mr-2 h-4 w-4" />
                             Back to Admin Login
                         </Button>
                     </Link>
