@@ -50,7 +50,7 @@ async function invokeContractMethod(
     method: string,
     args: any[],
     signerAddress: string
-): Promise<string> {
+): Promise<{ transactionHash: string; result: any }> {
     const contract = new Contract(contractId);
     const sourceAccount = await sorobanServer.getAccount(signerAddress);
 
@@ -110,11 +110,46 @@ async function invokeContractMethod(
         );
     }
 
+    const resultValue = getSorobanTransactionResult(simResult);
+
+    // Wait for on-chain confirmation
+    console.log(`⏳ Waiting for confirmation (hash: ${sendResponse.hash})...`);
     debugLog('Waiting for on-chain confirmation.');
     await waitForConfirmation(sendResponse.hash);
     debugLog(`Contract method "${method}" confirmed on-chain.`);
 
-    return sendResponse.hash;
+    return {
+        transactionHash: sendResponse.hash,
+        result: resultValue,
+    };
+}
+
+export function getSorobanTransactionResult(simResult: any): any {
+    const rawResult =
+        simResult?.result?.retval ||
+        simResult?.result?.result?.retval ||
+        simResult?.retval ||
+        simResult?.result?.xdr?.retval;
+
+    if (rawResult == null) {
+        return null;
+    }
+
+    try {
+        if (typeof rawResult === "string") {
+            const scval = xdr.ScVal.fromXDR(rawResult, "base64");
+            return scValToNative(scval);
+        }
+
+        if (typeof rawResult === "object" && (rawResult.switch || rawResult._switch)) {
+            return scValToNative(rawResult);
+        }
+
+        return rawResult;
+    } catch (e) {
+        console.error("DEBUG getSorobanTransactionResult error:", e);
+        return null;
+    }
 }
 
 async function simulateRead(
@@ -145,28 +180,7 @@ async function simulateRead(
         return null;
     }
 
-    const resultXdr = (sim as any).result?.retval;
-    if (!resultXdr) {
-        debugWarn('simulateRead returned an empty result.');
-        return null;
-    }
-
-    try {
-        if (typeof resultXdr === 'string') {
-            const scval = xdr.ScVal.fromXDR(resultXdr, 'base64');
-            return scValToNative(scval);
-        }
-
-        if (typeof resultXdr === 'object' && !resultXdr.switch && resultXdr._switch?.name === 'scvBool') {
-            debugLog('Using boolean fallback for simulateRead result.');
-            return resultXdr._value;
-        }
-
-        return scValToNative(resultXdr);
-    } catch (error) {
-        debugWarn('Failed to decode simulateRead result.', error);
-        return null;
-    }
+    return getSorobanTransactionResult(sim);
 }
 
 export async function getContractOwner(callerAddress: string): Promise<string> {
@@ -208,7 +222,30 @@ export async function isAuthorizedIssuer(
 export async function authorizeIssuer(adminAddress: string, issuerAddress: string): Promise<string> {
     const contractId = getContractAddress('CREDENTIAL_NFT');
     const args = [new Address(issuerAddress).toScVal()];
-    return invokeContractMethod(contractId, 'authorize_issuer', args, adminAddress);
+    const { transactionHash } = await invokeContractMethod(contractId, "authorize_issuer", args, adminAddress);
+    return transactionHash;
+}
+
+export function ensureValidTokenId(tokenId: unknown): string {
+    let normalized: string;
+
+    if (typeof tokenId === "bigint") {
+        normalized = tokenId.toString();
+    } else if (typeof tokenId === "number") {
+        normalized = Number.isSafeInteger(tokenId) ? tokenId.toString() : "";
+    } else if (typeof tokenId === "string") {
+        normalized = tokenId;
+    } else {
+        normalized = "";
+    }
+
+    if (!/^[1-9][0-9]*$/.test(normalized)) {
+        throw new Error(
+            `Invalid token ID returned from Soroban contract: ${JSON.stringify(tokenId)}.`
+        );
+    }
+
+    return normalized;
 }
 
 export async function issueCredentialOnStellar(
@@ -236,26 +273,30 @@ export async function issueCredentialOnStellar(
         nativeToScVal(ipfsUri, { type: 'string' }),
     ];
 
-    const txHash = await invokeContractMethod(contractId, 'issue_credential', args, issuerAddress);
-    debugLog('Credential issue transaction submitted successfully.');
+    const { transactionHash, result } = await invokeContractMethod(contractId, "issue_credential", args, issuerAddress);
+    const tokenId = ensureValidTokenId(result);
 
+    console.log("✅ Credential issued on Stellar Network. Tx:", transactionHash);
+    console.log("✅ Contract returned token ID:", tokenId);
     return {
-        tokenId: 'pending',
-        transactionHash: txHash,
+        tokenId,
+        transactionHash,
     };
 }
 
 export async function revokeCredentialOnStellar(tokenId: string, issuerAddress: string): Promise<string> {
-    debugLog('Revoking credential on Stellar.');
-    const contractId = getContractAddress('CREDENTIAL_NFT');
+    console.log("🗑️ Revoking credential on Stellar Network...");
+    const contractId = getContractAddress("CREDENTIAL_NFT");
+    const validatedTokenId = ensureValidTokenId(tokenId);
+
     const args = [
-        nativeToScVal(Number(tokenId), { type: 'u64' }),
+        nativeToScVal(Number(validatedTokenId), { type: "u64" }),
         new Address(issuerAddress).toScVal(),
     ];
 
-    const txHash = await invokeContractMethod(contractId, 'revoke_credential', args, issuerAddress);
-    debugLog('Credential revocation transaction submitted successfully.');
-    return txHash;
+    const { transactionHash } = await invokeContractMethod(contractId, "revoke_credential", args, issuerAddress);
+    console.log("✅ Credential revoked on Stellar Network. Tx:", transactionHash);
+    return transactionHash;
 }
 
 export async function generateCredentialHash(metadata: any): Promise<string> {

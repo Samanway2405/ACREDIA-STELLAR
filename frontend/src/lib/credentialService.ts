@@ -143,8 +143,13 @@ export async function issueCredential(
             metadataUrl,
             issuerAddress
         );
-        const resolvedTokenId = tokenId && tokenId !== 'pending' ? tokenId : transactionHash;
-        debugLog('Credential issued on Stellar network.');
+        console.log('✅ Credential issued! Token ID:', tokenId);
+        console.log('✅ Transaction:', transactionHash);
+
+        // Step 5: (Skipped) Registry handled atomically by Stellar contract
+
+        // Step 6: Save to Supabase database
+        console.log('💾 Saving to database...');
 
         if (!data.institutionId) {
             throw new Error('Missing institution ID. Please refresh and try again.');
@@ -161,9 +166,9 @@ export async function issueCredential(
             student_id: studentData?.id || null,
             student_wallet_address: data.studentWallet,
             institution_id: data.institutionId,
-            issuer_wallet_address: data.institutionWallet,
-            token_id: resolvedTokenId,
-            ipfs_hash: metadataPath,
+            issuer_wallet_address: data.institutionWallet, // Store issuer wallet
+            token_id: tokenId,
+            ipfs_hash: metadataPath, // Store full path (CID/filename)
             blockchain_hash: transactionHash,
             metadata,
             issued_at: new Date().toISOString(),
@@ -181,7 +186,7 @@ export async function issueCredential(
         debugLog('Credential saved to the database.');
 
         return {
-            tokenId: resolvedTokenId,
+            tokenId,
             transactionHash,
             ipfsHash: fileCID,
             metadataHash: metadataPath,
