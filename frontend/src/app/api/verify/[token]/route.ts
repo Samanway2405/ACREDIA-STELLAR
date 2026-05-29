@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/serverAuth';
-import { sorobanServer, activeNetwork, getContractAddress } from '@/lib/stellar';
+import { activeNetwork, getContractAddress, sorobanServer } from '@/lib/stellar';
 import {
+    Account,
     Contract,
     TransactionBuilder,
-    Account,
     TimeoutInfinite,
     nativeToScVal,
     scValToNative,
@@ -18,7 +18,9 @@ const DUMMY_ADDRESS = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
 
 async function simulateContractRead(method: string, args: any[]): Promise<any> {
     const contractId = getContractAddress('CREDENTIAL_NFT');
-    if (!contractId) return null;
+    if (!contractId) {
+        throw new Error('Missing contract configuration for CREDENTIAL_NFT');
+    }
 
     const contract = new Contract(contractId);
     const sourceAccount = new Account(DUMMY_ADDRESS, '0');
@@ -41,6 +43,10 @@ async function simulateContractRead(method: string, args: any[]): Promise<any> {
         if (typeof retval === 'string') {
             return scValToNative(xdr.ScVal.fromXDR(retval, 'base64'));
         }
+        // Failsafe for boolean ScVal objects where SDK swallowed the prototype
+        if (typeof retval === 'object' && !retval.switch && retval._switch?.name === 'scvBool') {
+            return retval._value;
+        }
         return scValToNative(retval);
     } catch {
         return null;
@@ -58,6 +64,14 @@ export async function GET(
         if (!token) {
             return NextResponse.json(
                 { success: false, error: 'Token is required' },
+                { status: 400 }
+            );
+        }
+
+        // Validate token is a safe non-negative integer before passing to contract
+        if (!/^\d+$/.test(token) || Number(token) > Number.MAX_SAFE_INTEGER) {
+            return NextResponse.json(
+                { success: false, error: 'Invalid token ID' },
                 { status: 400 }
             );
         }
@@ -94,12 +108,9 @@ export async function GET(
         }
 
         // --- On-chain verification ---
+        // get_credential returns the full struct including revoked; no need for a separate is_revoked call
         const tokenIdArg = nativeToScVal(Number(token), { type: 'u64' });
-
-        const [onChainCredential, onChainRevoked] = await Promise.all([
-            simulateContractRead('get_credential', [tokenIdArg]),
-            simulateContractRead('is_revoked', [tokenIdArg]),
-        ]);
+        const onChainCredential = await simulateContractRead('get_credential', [tokenIdArg]);
 
         // If the contract has no record for this token, the DB row cannot be trusted
         if (onChainCredential === null) {
@@ -109,8 +120,14 @@ export async function GET(
             );
         }
 
-        // On-chain revocation is authoritative — override DB value
-        const isRevoked = onChainRevoked === true || data.revoked === true;
+        // On-chain revocation is authoritative — if the chain result is unreadable, fail safe
+        if (typeof onChainCredential.revoked !== 'boolean') {
+            return NextResponse.json(
+                { success: false, error: 'Unable to determine revocation status from blockchain' },
+                { status: 503 }
+            );
+        }
+        const isRevoked = onChainCredential.revoked === true;
 
         const institution = Array.isArray(data.institution)
             ? data.institution[0]
@@ -134,7 +151,13 @@ export async function GET(
             success: true,
             credential: safeCredential,
         });
-    } catch {
+    } catch (err: any) {
+        if (err?.message?.startsWith('Missing contract configuration')) {
+            return NextResponse.json(
+                { success: false, error: 'Server configuration error' },
+                { status: 500 }
+            );
+        }
         return NextResponse.json(
             { success: false, error: 'Internal server error' },
             { status: 500 }
