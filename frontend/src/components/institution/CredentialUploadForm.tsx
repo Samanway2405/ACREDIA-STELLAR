@@ -6,9 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Upload, FileText, Loader2, CheckCircle2, Plus, X } from 'lucide-react';
-import { issueCredential, type CredentialData } from '@/lib/credentialService';
+import { issueCredential, type CredentialData, type CredentialIssueProgressStep } from '@/lib/credentialService';
 import { isValidAddress } from '@/lib/contracts';
+import { validateCredentialDraft } from '@/lib/credentialValidation';
 import { toast } from 'sonner';
 
 interface Subject {
@@ -38,6 +47,9 @@ export function CredentialUploadForm({
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [reviewOpen, setReviewOpen] = useState(false);
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [progressStep, setProgressStep] = useState<'validate' | CredentialIssueProgressStep | null>(null);
 
     const [formData, setFormData] = useState({
         studentName: '',
@@ -78,6 +90,44 @@ export function CredentialUploadForm({
         return ((m / max) * 100).toFixed(2) + '%';
     };
 
+    const getActiveSubjects = () =>
+        subjects
+            .filter(subject =>
+                subject.name.trim() ||
+                subject.marks.trim() ||
+                subject.maxMarks.trim() ||
+                subject.grade?.trim()
+            )
+            .map(subject => ({
+                ...subject,
+                name: subject.name.trim(),
+                marks: subject.marks.trim(),
+                maxMarks: subject.maxMarks.trim(),
+                grade: subject.grade?.trim(),
+            }));
+
+    const getValidationErrors = () =>
+        validateCredentialDraft(
+            {
+                studentName: formData.studentName,
+                studentWallet: formData.studentWallet,
+                credentialType: formData.credentialType,
+                degree: formData.degree,
+                gpa: formData.gpa,
+                issueDate: formData.issueDate,
+                subjects,
+                file: selectedFile,
+            },
+            isValidAddress
+        );
+
+    const progressSteps: Array<{ key: 'validate' | CredentialIssueProgressStep; label: string }> = [
+        { key: 'validate', label: 'Validate' },
+        { key: 'upload-ipfs', label: 'Upload IPFS' },
+        { key: 'sign-transaction', label: 'Sign transaction' },
+        { key: 'save-database', label: 'Save database' },
+    ];
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -114,54 +164,66 @@ export function CredentialUploadForm({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validation
-        if (!selectedFile) {
-            toast.error('Please select a file to upload');
+        if (isSubmitting) {
             return;
         }
 
-        if (!formData.studentWallet || !isValidAddress(formData.studentWallet)) {
-            toast.error('Please enter a valid student wallet address');
+        setProgressStep('validate');
+        const errors = getValidationErrors();
+        setValidationErrors(errors);
+
+        if (errors.length > 0) {
+            toast.error(errors[0]);
             return;
         }
 
-        if (!formData.studentName.trim()) {
-            toast.error('Please enter student name');
+        setReviewOpen(true);
+    };
+
+    const handleConfirmIssue = async () => {
+        if (isSubmitting) {
             return;
         }
 
-        if (!formData.degree.trim()) {
-            toast.error('Please enter degree name');
+        const errors = getValidationErrors();
+        setValidationErrors(errors);
+
+        if (errors.length > 0) {
+            toast.error(errors[0]);
+            setReviewOpen(false);
             return;
         }
 
-        if (!account) {
+        if (!account || !selectedFile) {
             toast.error('Please connect your wallet first');
             return;
         }
 
+        setReviewOpen(false);
         setIsSubmitting(true);
+        setProgressStep('validate');
 
         try {
+            const activeSubjects = getActiveSubjects();
             const credentialData: CredentialData = {
-                studentName: formData.studentName,
-                studentWallet: formData.studentWallet,
+                studentName: formData.studentName.trim(),
+                studentWallet: formData.studentWallet.trim(),
                 studentEmail: formData.studentEmail || undefined,
                 credentialType: formData.credentialType,
-                degree: formData.degree,
-                major: formData.major || undefined,
-                gpa: formData.gpa || undefined,
+                degree: formData.degree.trim(),
+                major: formData.major.trim() || undefined,
+                gpa: formData.gpa.trim() || undefined,
                 issueDate: formData.issueDate,
                 institutionId,
                 institutionName,
                 institutionWallet,
                 file: selectedFile,
-                subjects: subjects.length > 0 ? subjects : undefined,
+                subjects: activeSubjects.length > 0 ? activeSubjects : undefined,
             };
 
             toast.loading('Issuing credential...', { id: 'issue-credential' });
 
-            const result = await issueCredential(credentialData, account);
+            const result = await issueCredential(credentialData, account, setProgressStep);
 
             toast.success('Credential issued successfully!', { id: 'issue-credential' });
             toast.success(`Token ID: ${result.tokenId}`, { duration: 5000 });
@@ -183,6 +245,8 @@ export function CredentialUploadForm({
             setSelectedFile(null);
             setPreviewUrl(null);
             setSubjects([]);
+            setValidationErrors([]);
+            setProgressStep(null);
 
             // Call success callback
             if (onSuccess) {
@@ -203,6 +267,16 @@ export function CredentialUploadForm({
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Issue New Credential</h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+                {validationErrors.length > 0 && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                        {validationErrors.map((error) => (
+                            <p key={error} className="text-sm text-red-700">
+                                {error}
+                            </p>
+                        ))}
+                    </div>
+                )}
+
                 {/* Student Information */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-900">Student Information</h3>
@@ -489,6 +563,29 @@ export function CredentialUploadForm({
 
                 {/* Submit Button */}
                 <div className="pt-4">
+                    {progressStep && (
+                        <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+                            {progressSteps.map((step, index) => {
+                                const activeIndex = progressSteps.findIndex(item => item.key === progressStep);
+                                const isComplete = activeIndex > index;
+                                const isActive = progressStep === step.key;
+
+                                return (
+                                    <div
+                                        key={step.key}
+                                        className={`rounded-lg border p-2 text-xs ${
+                                            isComplete || isActive
+                                                ? 'border-teal-200 bg-teal-50 text-teal-700'
+                                                : 'border-gray-200 bg-gray-50 text-gray-500'
+                                        }`}
+                                    >
+                                        {isComplete ? 'Done ' : isActive && isSubmitting ? '* ' : ''}
+                                        {step.label}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                     <Button
                         type="submit"
                         disabled={isSubmitting || !selectedFile}
@@ -505,6 +602,76 @@ export function CredentialUploadForm({
                     </Button>
                 </div>
             </form>
+
+            <Dialog open={reviewOpen} onOpenChange={(open) => !isSubmitting && setReviewOpen(open)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Review Credential</DialogTitle>
+                        <DialogDescription>
+                            Confirm these details before wallet signing.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 text-sm">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <p className="text-gray-500">Student</p>
+                                <p className="font-medium text-gray-900">{formData.studentName || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p className="text-gray-500">Credential</p>
+                                <p className="font-medium text-gray-900">{formData.credentialType}</p>
+                            </div>
+                            <div>
+                                <p className="text-gray-500">Degree</p>
+                                <p className="font-medium text-gray-900">{formData.degree || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p className="text-gray-500">Issue Date</p>
+                                <p className="font-medium text-gray-900">{formData.issueDate || 'N/A'}</p>
+                            </div>
+                        </div>
+                        <div>
+                            <p className="text-gray-500">Student Wallet</p>
+                            <p className="break-all font-medium text-gray-900">{formData.studentWallet || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500">Document</p>
+                            <p className="font-medium text-gray-900">{selectedFile?.name || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p className="text-gray-500">Subjects</p>
+                            <p className="font-medium text-gray-900">{getActiveSubjects().length}</p>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setReviewOpen(false)}
+                            disabled={isSubmitting}
+                        >
+                            Back
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleConfirmIssue}
+                            disabled={isSubmitting}
+                            className="bg-linear-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white"
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Issuing...
+                                </>
+                            ) : (
+                                'Confirm and Sign'
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Card>
     );
 }
