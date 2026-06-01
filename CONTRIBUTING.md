@@ -30,10 +30,74 @@ Please avoid:
 - Low-value typo-only PRs unless they fix important documentation
 - Adding unrelated features without an issue
 
-## Project Setup
+## Clean Clone Setup
 
-Clone the repository:
+Use npm for frontend work. The repository commits `frontend/package-lock.json`, and CI uses `npm ci`.
 
-```bash
-git clone https://github.com/soumen0818/ACREDIA-STELLAR.git
-cd ACREDIA-STELLAR
+```powershell
+git clone https://github.com/Soumen1080/ACREDIA-STELLAR.git
+cd ACREDIA-STELLAR\frontend
+npm ci
+Copy-Item .env.local.example .env.local
+npm run dev
+```
+
+Fill `frontend\.env.local` before testing flows that use Supabase, Pinata/IPFS, Stellar, or admin APIs. The canonical variable names live in `frontend/.env.local.example`.
+
+For contract deployment work only:
+
+```powershell
+cd ..\contracts
+Copy-Item .env.example .env
+rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown --release
+```
+
+Run the canonical Supabase scripts for a clean database:
+
+```text
+frontend/sql/database_schema.sql
+frontend/sql/secure_rls_migration.sql
+```
+
+## Production Safety
+
+- Keep `SUPABASE_SERVICE_ROLE_KEY`, `PINATA_JWT`, and Stellar secret keys server-only.
+- Do not put secrets in `NEXT_PUBLIC_*` variables.
+- Do not paste real secrets into screenshots, logs, browser code, pull requests, or issues.
+- Verify contract IDs on Stellar Expert before using them in production.
+- Use Stellar Public Network only after contract review, RLS review, and deployment verification.
+
+## Reporting Issues
+
+Use the GitHub issue templates. Reports should include:
+
+- Required labels or area selection, such as `bug`, `setup`, `docs`, `frontend`, `contracts`, `database`, or `ci`.
+- Exact affected file paths, for example `frontend/src/lib/contracts.ts` or `contracts/src/lib.rs`.
+- Clean-clone setup commands copied from the README or this file.
+- Environment details: OS, Node version, npm version, browser, wallet, and Stellar network.
+- Expected behavior, actual behavior, and the smallest reproduction steps.
+
+Issues missing setup steps, labels/area, or file paths may be closed until enough detail is provided.
+
+## Pull Requests
+
+Before opening a pull request:
+
+- Keep the change scoped to the issue or documented problem.
+- Add or update tests when changing behavior.
+- Update README, env examples, SQL notes, or issue templates when setup behavior changes.
+- Run the relevant checks locally where possible:
+
+```powershell
+cd frontend
+npm test
+npm run build
+```
+
+```powershell
+cd contracts
+cargo fmt -- --check
+cargo test --lib
+cargo build --target wasm32-unknown-unknown --release
+```
