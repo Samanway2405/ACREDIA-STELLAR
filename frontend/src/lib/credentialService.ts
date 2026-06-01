@@ -52,9 +52,12 @@ export interface CredentialMetadata {
     };
 }
 
+export type CredentialIssueProgressStep = 'upload-ipfs' | 'sign-transaction' | 'save-database';
+
 export async function issueCredential(
     data: CredentialData,
-    issuerAddress: string
+    issuerAddress: string,
+    onProgress?: (step: CredentialIssueProgressStep) => void
 ): Promise<{
     tokenId: string;
     transactionHash: string;
@@ -62,6 +65,7 @@ export async function issueCredential(
     metadataHash: string;
 }> {
     try {
+        onProgress?.('upload-ipfs');
         debugLog('Uploading credential file to IPFS.');
         const fileCID = await uploadToIPFS(data.file);
         const fileUrl = getIPFSUrl(fileCID);
@@ -137,6 +141,7 @@ export async function issueCredential(
         debugLog('Credential hash generated.');
 
         debugLog('Issuing credential on Stellar network.');
+        onProgress?.('sign-transaction');
         const { tokenId, transactionHash } = await issueCredentialOnStellar(
             data.studentWallet,
             credentialHash,
@@ -156,6 +161,7 @@ export async function issueCredential(
         }
 
         debugLog('Saving issued credential to the database.');
+        onProgress?.('save-database');
         const { data: studentData } = await supabase
             .from('students')
             .select('id')
