@@ -1,53 +1,71 @@
 name: Bug or Setup Issue
-description: Report a reproducible bug, setup problem, or stale documentation.
+description: Report a reproducible bug, setup problem, or stale setup documentation.
 title: "[Bug]: "
-labels: ["bug"]
+labels: ["bug", "needs-triage"]
 body:
+  - type: dropdown
+    id: issue-label
+    attributes:
+      label: Required issue label
+      description: Choose the closest primary label for this report.
+      options:
+        - bug
+        - setup
+        - docs
+        - regression
+        - security
+    validations:
+      required: true
   - type: dropdown
     id: area
     attributes:
-      label: Area label
-      description: Choose the closest project area label.
+      label: Required area label
+      description: Choose the project area that is most affected.
       options:
         - frontend
         - contracts
         - database
-        - docs
         - ci
+        - docs
+        - security
     validations:
       required: true
   - type: textarea
     id: affected-paths
     attributes:
       label: Affected file paths
-      description: List exact files or folders, for example `frontend/src/lib/contracts.ts`.
+      description: List exact files or folders. Use repository-relative paths.
       placeholder: |
-        frontend/src/...
-        contracts/src/...
+        frontend/src/lib/contracts.ts
+        frontend/sql/secure_rls_migration.sql
+        contracts/src/lib.rs
         README.md
     validations:
       required: true
   - type: textarea
-    id: setup
+    id: clean-clone-setup
     attributes:
-      label: Setup steps
-      description: Paste the commands and environment setup you used from a clean clone.
+      label: Clean-clone setup steps
+      description: Paste the exact commands and env setup you used from a clean clone. Include any deviations from README.md.
       placeholder: |
-        git clone ...
+        git clone https://github.com/Soumen1080/ACREDIA-STELLAR.git
         cd ACREDIA-STELLAR/frontend
-        npm install
-        Copy-Item .env.local.example .env.local
+        npm ci
+        cp .env.local.example .env.local
+        # filled NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, ...
+        npm run dev
     validations:
       required: true
   - type: textarea
     id: reproduce
     attributes:
       label: Reproduction steps
-      description: Write the smallest steps needed to reproduce the issue.
+      description: Write the smallest complete steps needed to reproduce the issue.
       placeholder: |
-        1. Sign in as ...
-        2. Open ...
-        3. Click ...
+        1. Start the app with npm run dev
+        2. Open /dashboard
+        3. Connect Freighter on testnet
+        4. Click ...
     validations:
       required: true
   - type: textarea
@@ -61,14 +79,27 @@ body:
     id: actual
     attributes:
       label: Actual behavior
-      description: What happened instead? Include errors, logs, or screenshots if useful.
+      description: What happened instead? Include errors, logs, screenshots, or transaction IDs if useful. Redact secrets.
     validations:
       required: true
   - type: input
     id: environment
     attributes:
       label: Environment
-      description: OS, Node version, npm version, browser, wallet/network.
+      description: OS, Node version, npm version, browser, wallet, and Stellar network.
       placeholder: "Windows 11, Node 20, npm 10, Chrome, Freighter testnet"
     validations:
       required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Pre-submit checklist
+      options:
+        - label: I included required labels/area selections above.
+          required: true
+        - label: I included repository-relative file paths.
+          required: true
+        - label: I included clean-clone setup and reproduction steps.
+          required: true
+        - label: I removed or redacted all secrets, service-role keys, Pinata JWTs, and Stellar secret keys.
+          required: true

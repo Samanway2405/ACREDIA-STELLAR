@@ -501,27 +501,29 @@ sequenceDiagram
 
 ## 🚀 Getting Started
 
-### Quick Start Guide
+### Clean Clone Quick Start
 
-Copy-paste local setup:
+Use npm for the frontend. This repository commits `frontend/package-lock.json`, and CI installs with `npm ci`.
+
+From a fresh clone:
 
 ```powershell
-git clone https://github.com/Sumanpradhan1706/ACREDIA-STELLAR.git
+git clone https://github.com/Soumen1080/ACREDIA-STELLAR.git
 cd ACREDIA-STELLAR\frontend
-npm install
+npm ci
 Copy-Item .env.local.example .env.local
 npm run dev
 ```
 
-Then fill `.env.local`, run the Supabase SQL scripts below, and open [http://localhost:3000](http://localhost:3000).
+Then fill `frontend\.env.local`, run the Supabase SQL scripts listed below, and open [http://localhost:3000](http://localhost:3000).
 
-> **TL;DR**: Install Stellar CLI → Set up test account → Clone repo → Install dependencies → Configure `.env` files → Deploy Soroban contracts → Run frontend
+> **TL;DR**: Install prerequisites, clone the repo, run `npm ci` in `frontend`, copy `frontend/.env.local.example`, run the two Supabase SQL scripts, and start `npm run dev`. Deploy the contract only if you changed contract code or need a fresh contract ID.
 
 ### Prerequisites
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js** (v18 or higher) - [Download](https://nodejs.org/)
+- **Node.js** (v20 recommended; v18 minimum) - [Download](https://nodejs.org/)
 - **npm** (bundled with Node.js) - this repo includes `frontend/package-lock.json`
 - **Git** - [Download](https://git-scm.com/)
 - **Stellar CLI** - [Install Guide](https://developers.stellar.org/docs/build/guides/cli/install)
@@ -533,7 +535,7 @@ Before you begin, ensure you have the following installed:
 1. **Clone the Repository**
 
 ```powershell
-git clone https://github.com/Sumanpradhan1706/ACREDIA-STELLAR.git
+git clone https://github.com/Soumen1080/ACREDIA-STELLAR.git
 cd ACREDIA-STELLAR
 ```
 
@@ -541,7 +543,7 @@ cd ACREDIA-STELLAR
 
 ```powershell
 cd frontend
-npm install
+npm ci
 ```
 
 3. **Install Contract Build Toolchain**
@@ -558,7 +560,14 @@ cargo install --locked stellar-cli
 
 4. **Set Up Environment Variables**
 
-Create a `.env.local` file in the `frontend` directory:
+Copy the canonical frontend example:
+
+```powershell
+cd ..\frontend
+Copy-Item .env.local.example .env.local
+```
+
+Edit `frontend\.env.local` and replace placeholder values:
 
 ```env
 # Smart Contract Addresses — Stellar Testnet (deployed 2026-04-01)
@@ -589,23 +598,22 @@ PINATA_JWT=your_pinata_jwt_token
 # NEXT_PUBLIC_PINATA_GATEWAY=https://your-gateway.mypinata.cloud
 ```
 
-You can also copy the canonical example:
+For contract deployment secrets, copy the contract example only when you are deploying:
 
 ```powershell
-cd frontend
-Copy-Item .env.local.example .env.local
+cd ..\contracts
+Copy-Item .env.example .env
 ```
 
-Create a `.env` file in the `contracts` directory:
+Then edit `contracts\.env`:
 
 ```env
-# Stellar Account Private Key (for deployment - NEVER commit this!)
-PRIVATE_KEY=your_stellar_secret_key
-
-# Network Configuration
-STELLAR_NETWORK=testnet  # Use 'public' for mainnet
-STELLAR_ADMIN_SECRET_KEY=your_admin_secret_key
+STELLAR_NETWORK=testnet
+STELLAR_SOURCE_ACCOUNT=deployer
+STELLAR_CONTRACT_ID=
 ```
+
+> **Production warning**: Keep `SUPABASE_SERVICE_ROLE_KEY`, `PINATA_JWT`, and all Stellar secret keys server-only. Never put service-role keys, Pinata JWTs, or Stellar secret keys in `NEXT_PUBLIC_*` variables, browser code, screenshots, logs, or GitHub issues.
 
 ### Database Setup
 
@@ -628,6 +636,8 @@ they point back to the canonical setup flow and should not be run for new
 deployments.
 
 ### Smart Contract Deployment
+
+The public testnet contract is already listed in `frontend/.env.local.example`. Skip this section unless you changed `contracts/src/lib.rs`, need an isolated test deployment, or are preparing a production deployment.
 
 6. **Set Up Stellar Identity**
 
@@ -695,11 +705,18 @@ Navigate to [http://localhost:3000](http://localhost:3000)
 
 ```powershell
 cd frontend
+npm ci
 npm run build
 npm start
 ```
 
-> **Production warning**: Keep `SUPABASE_SERVICE_ROLE_KEY`, `PINATA_JWT`, and any Stellar secret keys server-only. Never put private keys or service-role values in `NEXT_PUBLIC_*` variables, browser code, screenshots, or issues.
+Before deploying to production:
+
+- Use Stellar Public Network values only after contract review and a verified mainnet deployment.
+- Rotate any secret that was pasted into chat, screenshots, logs, browser code, or an issue.
+- Set server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`, `PINATA_JWT`, Stellar secret keys) only in the hosting provider's protected environment variables.
+- Confirm Supabase RLS is enabled and production policies come from `frontend/sql/secure_rls_migration.sql`.
+- Verify contract IDs on Stellar Expert before pointing users at a production environment.
 
 ---
 
@@ -1187,7 +1204,7 @@ Built with amazing open-source technologies:
 
 For questions, feedback, or support:
 
-- Open an issue on [GitHub Issues](https://github.com/Sumanpradhan1706/Acredia-stellar/issues)
+- Open an issue on [GitHub Issues](https://github.com/Soumen1080/ACREDIA-STELLAR/issues)
 - Check existing issues for solutions
 - Include setup steps, affected file paths, expected behavior, actual behavior, and labels such as `bug`, `docs`, `frontend`, `contracts`, or `database`.
 
