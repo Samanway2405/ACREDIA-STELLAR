@@ -1,19 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import { normalizePublicSignupRole, type PublicSignupRole } from './adminAccess';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
+const supabaseUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') 
+    ? rawUrl 
+    : 'https://placeholder.supabase.co';
+const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim() || 'placeholder';
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (supabaseUrl === 'https://placeholder.supabase.co' || supabaseAnonKey === 'placeholder') {
     if (process.env.NODE_ENV !== 'production') {
-        console.warn('⚠️ Missing Supabase environment variables');
+        console.warn('⚠️ Missing or invalid Supabase environment variables');
     }
 }
 
-export const supabase = createClient(
-    supabaseUrl || 'https://placeholder.supabase.co', 
-    supabaseAnonKey || 'placeholder'
-);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function isInvalidRefreshTokenError(error: unknown): boolean {
     if (!error || typeof error !== 'object') {

@@ -43,11 +43,13 @@ export function hasServiceRoleEnv(): boolean {
 }
 
 function createAnonClient() {
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Missing Supabase public environment variables');
-    }
+    const rawUrl = (supabaseUrl || '').trim();
+    const cleanUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') 
+        ? rawUrl 
+        : 'https://placeholder.supabase.co';
+    const cleanKey = (supabaseAnonKey || '').trim() || 'placeholder';
 
-    return createClient(supabaseUrl, supabaseAnonKey, {
+    return createClient(cleanUrl, cleanKey, {
         auth: {
             persistSession: false,
             autoRefreshToken: false,
@@ -56,11 +58,13 @@ function createAnonClient() {
 }
 
 function createServiceRoleClient() {
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-        throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY');
-    }
+    const rawUrl = (supabaseUrl || '').trim();
+    const cleanUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') 
+        ? rawUrl 
+        : 'https://placeholder.supabase.co';
+    const cleanKey = (supabaseServiceRoleKey || '').trim() || 'placeholder';
 
-    return createClient(supabaseUrl, supabaseServiceRoleKey, {
+    return createClient(cleanUrl, cleanKey, {
         auth: {
             persistSession: false,
             autoRefreshToken: false,
@@ -177,11 +181,13 @@ export function getServiceRoleClient() {
 }
 
 export function createUserScopedServerClient(accessToken: string) {
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Missing Supabase public environment variables');
-    }
+    const rawUrl = (supabaseUrl || '').trim();
+    const cleanUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') 
+        ? rawUrl 
+        : 'https://placeholder.supabase.co';
+    const cleanKey = (supabaseAnonKey || '').trim() || 'placeholder';
 
-    return createClient(supabaseUrl, supabaseAnonKey, {
+    return createClient(cleanUrl, cleanKey, {
         auth: {
             persistSession: false,
             autoRefreshToken: false,
